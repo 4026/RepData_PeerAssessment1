@@ -7,19 +7,49 @@ output:
 
 
 ## Loading and preprocessing the data
+```{r}
+# Unzip the data and read it in.
+unzip("activity.zip")
+activity <- read.csv("activity.csv", stringsAsFactors = FALSE)
 
+# Process the columns into more useful formats.
+activity$interval <- as.factor(activity$interval)
+
+```
 
 
 ## What is mean total number of steps taken per day?
-
+```{r}
+totals <- aggregate(activity$steps, list(Day = activity$date), sum, na.rm = TRUE)
+hist(totals$x, main = "Histogram of total steps per day")
+mean_steps <- mean(totals$x)
+median_steps <- median(totals$x)
+```
 
 
 ## What is the average daily activity pattern?
-
+```{r}
+interval_means <- aggregate(activity$steps, list(Interval = activity$interval), mean, na.rm = TRUE)
+plot(interval_means, type = "l", ylab="Mean steps", main = "Mean steps at 5-minute intervals")
+max_interval <- means[means$x == max(means$x), "Interval"]
+```
 
 
 ## Imputing missing values
+```{r}
+num_nas <- sum(is.na(activity$steps))
 
+get_interval_mean <- function(interval) { interval_means[interval_means$Interval == interval, "x"] }
+
+filled_activity <- activity
+filled_activity$steps[is.na(filled_activity$steps)] <- 
+  sapply(filled_activity$interval[is.na(filled_activity$steps)], get_interval_mean)
+
+filled_totals <- aggregate(activity$steps, list(Day = activity$date), sum, na.rm = TRUE)
+hist(filled_totals$x, main = "Histogram of total steps per day")
+mean_steps <- mean(filled_totals$x)
+median_steps <- median(filled_totals$x)
+```
 
 
 ## Are there differences in activity patterns between weekdays and weekends?
