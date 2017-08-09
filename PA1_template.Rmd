@@ -9,9 +9,9 @@ This report analyses the accompanying `activity.zip` file, which contains footst
 
 ## Loading and preprocessing the data
 
-The following code loads the ggplot2 library required for plotting the graphs in this report, then extracts the `activity.zip` file and reads the resulting csv into memory.
+The following code loads the ggplot2 library required for plotting the graphs in this report, then extracts the `activity.zip` file and reads the resulting CSV file into memory.
 
-```{r}
+```{r load_data}
 # Load required libraries
 require(ggplot2)
 
@@ -26,9 +26,14 @@ activity <- read.csv("activity.csv", stringsAsFactors = FALSE)
 
 The following code summarises the footstep data, calculating the total number of steps on each day (ignoring missing values) and plots that data as a histogram. It also calculates the mean and median number of daily steps taken across all days.
 
-```{r}
-# Summarise the footstep data by day.
-totals <- aggregate(activity$steps, list(Day = activity$date), sum, na.rm = TRUE)
+```{r mean_per_day}
+# Summarise the total number of footsteps by day.
+totals <- aggregate(
+    activity$steps, 
+    list(Day = activity$date),
+    sum, 
+    na.rm = TRUE
+)
 mean_steps <- mean(totals$x)
 median_steps <- median(totals$x)
 
@@ -37,19 +42,38 @@ hist(totals$x, main = "Histogram of total steps per day")
 
 ```
 
-The mean number of steps taken per day was `r format(mean_steps, big.mark = ",")`. The median numebr of steps taken per day was  `r format(median_steps, big.mark=",")`.
+The mean number of steps taken per day was `r format(mean_steps, big.mark = ",")`. The median number of steps taken per day was `r format(median_steps, big.mark=",")`.
 
 
 ## What is the average daily activity pattern?
-```{r}
-interval_means <- aggregate(activity$steps, list(Interval = activity$interval), mean, na.rm = TRUE)
-plot(interval_means, type = "l", ylab="Mean steps", main = "Mean steps at 5-minute intervals")
-max_interval <- interval_means[interval_means$x == max(interval_means$x), "Interval"]
+
+
+
+```{r mean_per_interval}
+
+# Summarise the mean number of footsteps by interval number.
+interval_means <- aggregate(
+    activity$steps, 
+    list(interval = activity$interval), 
+    mean, 
+    na.rm = TRUE
+)
+
+# Plot the interval number against the mean number of steps in that interval.
+ggplot(data = interval_means, aes(x = interval, y = x)) + 
+    geom_line() + 
+    ylab("Mean steps") + 
+    ggtitle("Mean steps at 5-minute intervals")
+
+# Get the interval number with the greatest average number of footsteps.
+max_row <- which(interval_means$x == max(interval_means$x))
+max_interval <- interval_means[max_row, "Interval"]
+
 ```
 
 
 ## Imputing missing values
-```{r}
+```{r missing_values}
 num_nas <- sum(is.na(activity$steps))
 
 get_interval_mean <- function(interval) { interval_means[interval_means$Interval == interval, "x"] }
@@ -67,7 +91,7 @@ median_steps <- median(filled_totals$x)
 
 ## Are there differences in activity patterns between weekdays and weekends?
 
-```{r}
+```{r weekends}
 # Create factor variable describing weekend/weekday status of data.
 weekend_days <- c("Saturday", "Sunday")
 filled_activity$day_type <- as.factor(
