@@ -9,16 +9,17 @@ This report analyses the accompanying `activity.zip` file, which contains footst
 
 ## Loading and preprocessing the data
 
-The following code loads the ggplot2 library required for plotting the graphs in this report, then extracts the `activity.zip` file and reads the resulting CSV file into memory.
+The following code loads the ggplot2 library required for plotting the graphs in this report, and the stringr and scales libraries used to format times on the graph axes. It then extracts the `activity.zip` file and reads the resulting CSV file into memory.
 
-```{r load_data}
+```{r load_data, message=FALSE}
 # Load required libraries
 require(ggplot2)
+require(stringr)
+require(scales)
 
 # Unzip the data and read it in.
 unzip("activity.zip")
 activity <- read.csv("activity.csv", stringsAsFactors = FALSE)
-
 ```
 
 
@@ -26,7 +27,7 @@ activity <- read.csv("activity.csv", stringsAsFactors = FALSE)
 
 The following code summarises the footstep data, calculating the total number of steps on each day (ignoring missing values) and plots that data as a histogram. It also calculates the mean and median number of daily steps taken across all days.
 
-```{r mean_per_day}
+```{r mean_per_day, fig.align='center'}
 # Summarise the total number of footsteps by day.
 totals <- aggregate(
     activity$steps, 
@@ -38,18 +39,18 @@ mean_steps <- mean(totals$x)
 median_steps <- median(totals$x)
 
 # Plot a histogram of total steps each day.
-hist(totals$x, main = "Histogram of total steps per day")
+hist(totals$x, main = "Histogram of total steps per day", xlab = "Total steps")
 
 ```
 
-The mean number of steps taken per day was `r format(mean_steps, big.mark = ",")`. The median number of steps taken per day was `r format(median_steps, big.mark=",")`.
+The mean number of steps taken per day was **`r format(mean_steps, big.mark = ",")`**. The median number of steps taken per day was **`r format(median_steps, big.mark=",")`**.
 
 
 ## What is the average daily activity pattern?
 
+This code chunk summarises the footstep data by intervals within the day, instead of by day, calculating the mean number of steps for each 5-minute interval. It then renders a graph of these values, depicting the average daily activity pattern.
 
-
-```{r mean_per_interval}
+```{r mean_per_interval, fig.align='center'}
 
 # Summarise the mean number of footsteps by interval number.
 interval_means <- aggregate(
@@ -60,38 +61,68 @@ interval_means <- aggregate(
 )
 
 # Plot the interval number against the mean number of steps in that interval.
-ggplot(data = interval_means, aes(x = interval, y = x)) + 
+plot <- ggplot(
+    data = interval_means, 
+    aes(x=strptime(str_pad(interval, 4, pad="0"), "%H%M", tz="UTC"), y=x)
+)
+
+plot + 
     geom_line() + 
     ylab("Mean steps") + 
+    xlab("Time") + 
+    scale_x_datetime(labels = date_format("%H:%M", tz="UTC")) +
     ggtitle("Mean steps at 5-minute intervals")
 
 # Get the interval number with the greatest average number of footsteps.
 max_row <- which(interval_means$x == max(interval_means$x))
-max_interval <- interval_means[max_row, "Interval"]
+max_interval <- interval_means[max_row, "interval"]
 
 ```
 
+The 5-minute interval with the greatest average number of steps is **`r max_interval`**, with **`r format(max(interval_means$x), big.mark = ",")`** steps.
+
 
 ## Imputing missing values
-```{r missing_values}
+
+```{r num_missing_values}
 num_nas <- sum(is.na(activity$steps))
+```
 
-get_interval_mean <- function(interval) { interval_means[interval_means$Interval == interval, "x"] }
+The above code calculates the total number of missing values in the dataset: **`r format(num_nas, big.mark = ",")`**.
 
+```{r fill_missing_values, fig.align='center'}
+# Copy the activity data
 filled_activity <- activity
-filled_activity$steps[is.na(filled_activity$steps)] <- 
-  sapply(filled_activity$interval[is.na(filled_activity$steps)], get_interval_mean)
 
-filled_totals <- aggregate(activity$steps, list(Day = activity$date), sum, na.rm = TRUE)
-hist(filled_totals$x, main = "Histogram of total steps per day")
+# Define a function that looks up the mean step value for a given interval.
+get_interval_mean <- function(interval) { interval_means[interval_means$interval == interval, "x"] }
+
+# Fill any null step values in the copied data with the mean number of steps for the corresponding 
+# interval.
+filled_activity$steps[is.na(filled_activity$steps)] <- sapply(
+    filled_activity$interval[is.na(filled_activity$steps)], 
+    get_interval_mean
+)
+```
+
+The above code aims to fill in the missing footstep values in the data using the previously-calculated average footstep data for the relevant interval.
+
+```{r plot_filled_data, fig.align='center'}
+filled_totals <- aggregate(filled_activity$steps, list(Day = filled_activity$date), sum)
+hist(filled_totals$x, main = "Histogram of total steps per day", xlab = "Total steps")
 mean_steps <- mean(filled_totals$x)
 median_steps <- median(filled_totals$x)
 ```
 
+The above code plots a histogram of the total number of steps taken each day using the new dataset with missing values replaced with interval averages. It also calculates the mean (**`r format(mean_steps, big.mark = ",")`**) and median (**`r format(median_steps, big.mark = ",")`**) total number of steps taken per day. 
+
+Clearly, these new values differ from those calculated earlier. In particular, because several days in the original dataset had no data available at all, the process of filling in average values from the activity patterns of other days has created several identical "average" days in the data. This raises the mean total (because an "average" day contains far more steps than the previous value of 0), and means that the median value is now itself a filled, "average" day, so the mean and median are now equal.
 
 ## Are there differences in activity patterns between weekdays and weekends?
 
-```{r weekends}
+The following code marks each value in the filled dataset with a factor variable indicating whether it is a weekday or a weekend, and plots separate mean activity profiles for weekdays and weekends.
+
+```{r weekends, fig.align='center'}
 # Create factor variable describing weekend/weekday status of data.
 weekend_days <- c("Saturday", "Sunday")
 filled_activity$day_type <- as.factor(
@@ -106,11 +137,19 @@ filled_interval_means <- aggregate(
 )
 
 # Plot summarised data.
-ggplot(data = filled_interval_means, aes(x=interval, y=x)) + 
+plot <- ggplot(
+    data = filled_interval_means, 
+    aes(x=strptime(str_pad(interval, 4, pad="0"), "%H%M", tz="UTC"), y=x)
+) 
+
+plot + 
   geom_line() + 
   facet_grid(day_type ~ .) + 
-  xlab("Interval") + 
+  xlab("Time") + 
+  scale_x_datetime(labels = date_format("%H:%M", tz="UTC")) +
   ylab("Mean steps") + 
   ggtitle("Mean steps per 5-minute interval")
 
 ```
+
+Some differences can be observed between weekday and weekend activity profiles: in particular, the owner of the device appears to begin being active earlier in the day on weekdays, but is generally more active throughout the middle of the day at the weekend.
